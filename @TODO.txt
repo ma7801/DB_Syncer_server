@@ -1,0 +1,235 @@
+- TODO / NOTES:
+        - currently working on (1/5/14)
+            - uploading to github 
+                - just finished separating DB_Syncer client from my HomeworkChecker app (I had to upgrade
+                  PhoneGap and Android SDK in the process).  Tested just DB_Syncer and seems to work fine.
+                  Next step is to add the files to the github repo.  I don't know if I have to create
+                  two different repos, one for the client, one for the server, or if I can somehow keep them in
+                  the same repo.
+        
+            - testing syncing - just created a debug function (on both sides) that will save the sync_tables
+              so that I can see if any errors are occurring in the reduction
+              - there are some bugs -- certain records aren't synced, and client has a record id of '0' which
+                shouldn't exist as ids on both sides should start at '1'; look at reduction on both sides,
+                and then conflict resolution
+                - it seems these bugs are no longer - at least during a clean sync (i.e. both server and client
+                  have no data in common before sync)
+                  
+             - another bug: server sync seems to be happening twice (getting "primary key errors" from server)
+               I think that the server to client sync is being invoked twice.  Before fixing this, I want to 
+               upload code to github and start versioning!
+              
+              
+        - next steps 
+            - check errors in server function that generates random actions
+            - keep testing, and look for issues with 'update' timestamp conflicts
+            - sync table reducer super slow for large tables
+                - can ORDER BY record_id, then timestamp, and if next 
+            - test in the case of multiple data tables
+            
+            - upload to github!
+                - before I do so, need to make DB_Syncer on client independent of my homework checker program!
+           
+            - need to allow a sync to be initiated on server end - need to code DB_Syncer::sync()
+           
+           
+            - TEST server to client syncs with updates and deletes, and combinations - this should test some
+              new code I modified/added 12/19 to DB_Syncer.js in _server_to_client_sync_callback() and the
+              new function I added to handle some timing issues _execute_server_action() (tests with just
+              inserts (and where no conflicts would occur) seems to be working fine)
+       
+            - TEST syncing by adding data & actions on both ends; if bugs:
+                - make sure sync tables reducing property (will have to comment/modify code to see table 
+                  (reductions)
+                - look for conflict issues - insert ids, timestamps                         
+            
+            - some overall concerns: timing; I may have to set up some kind of system that will
+              lock the database when a series of operations is running (say the sync table is being reduced). 
+              Also, have a method that "polls" the database to see if it is unlocked - maybe have it poll every
+              200 ms for a maximum of 10 times or something (make these settings adjustable).
+          
+        
+        
+            - test conflicts that occur with timestamps (i.e. update conflicts)
+            
+      
+          
+        - need to finish algorithm tweaks on server side (i.e. conflict detection/resolution, new location of
+          timestamps in sync table rather than separate table, etc.) (DONE BUT NOT TESTED)
+          
+        - need to tweak the client code for timestamps in sync table, not separate table (DONE BUT NOT TESTED)
+      
+  
+ 
+    - coding DB_Syncer_listener.php:
+        
+    
+        - 11/22 - Just finished testing test page (dbs_test.php) to put values into the database;  Next step:
+            Need to code DB_Syncer->sync().
+    
+        - 11/14: lots of testing needed; changed, but haven't tested (still finishing apparatus to test!):
+            Recently changed:        
+            DB_Syncer_listener "update" code (line 198+)
+            Added file "DB_Syncer.php" (class def. for DB_Syncer) - constructor seems to work (empty tables
+               created, "log" functions need testing
+            Added file "dbs_test.php" (php code that will instantiate a DB_Syncer object)
+                - still finishing this need to add code to insert, update, delete records to test
+                  DB_Syncer class
+            
+        
+        need to change the 'update' code on server (line 195+ in DB_Syncer_listener.php)  -- it needs
+          to compare timestamps in new timestamps tables (get rid of the "timestamp_field" index on client
+          and server)
+          
+        - Next: Need to account for differences in server & client dates/clocks for timestamps (maybe just
+          set the current_timestamp on both client & server with greenwich mean time -- it looks like the
+          client (device) already does this automatically)
+        - Then: code syncing for the other direction (i.e. go through _sync_actions table on server and
+          send changes to client).  Hopefully this will go quicker since I've already coded on direction!
+          
+        - Then: test with my actual database, not the test database
+        - Would be nice: to have a handler to create the database on the server if it doesn't exist; 
+          would need to look up datatypes of each column in a record and submit that along with the data 
+          (probably some SQL function to do this)
+
+
+        - Debugging note: if you need to see messages from DB_Syncer_listener on the console, you have to
+          change the datatype argument in the $.post function on the client to "text" instead of "json"      
+      
+      
+        - Need to put control of creating the table in DB_Syncer since certain triggers must be created, or
+          at least an existing table/database needs to be 'initialized' (both on the server and the client)
+          In order to make sure that UTC/GMT times are used for timestamps; must use following triggers:
+          
+CODE CLEANUP:
+
+        - make sure the arguments for phonegap database function callbacks (transaction, executeSql) are
+          correct (i.e. tx, err)
+          
+        - removed any unecessary variables, class properties, methods, old code
+        
+        - upload to github for version control!!!
+          
+            
+MAYBE:
+        - In web db, create own set of tables per each user, like 0001_classes (for HW checker, not DB_Syncer)
+        
+        - Use triggers to automate creating records in sync_table instead of relying on user to use "log_" methods
+        
+            
+POSSIBLE BUGS (haven't tested for yet):
+
+        - possible bug introduced - timing issue with 'is_last_record' on client -- I changed it to a class
+          property instead of a parameter that gets passed from subsequent methods.  Changing it back should
+          fix this.
+
+
+            
+SYNC ALGORITHM:
+
+Also, see http://coenraets.org/blog/2012/05/simple-offline-data-synchronization-for-mobile-web-and-phonegap-applications/ ---note this is unidirectional (server to client); would need to extend to make bidirectional
+
+When any record is deleted, added, or updated on device, add_sync_action() is called, which adds a record
+in the sync_actions table defined as follows:
+    CREATE TABLE IF NOT EXISTS sync_actions (
+        id INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT, 
+        table VARCHAR(20), 
+        record_id INTEGER NOT NULL,
+        sync_action VARCHAR(20))
+        
+    sync_action can be one of the following: "insert", "delete", or "update"
+
+
+When a sync is initiated, either by user or by some other trigger (opening the app, perhaps), here's what should happen:
+
+    (On device)
+    For each row in the sync_actions table on the device {
+        call device_sync_action() on the server passing the date from the first row of the table to it AND 
+            data from the respective table AND the highest id from that table
+        wait for the server's response (callback function in $.post)
+        (in callback:)
+            if (not successful) {
+                report an error
+                return;
+            }
+
+            if (action is delete) {
+                delete the device record that was marked for deletion (via to_be_deleted)
+            }
+            else if (action is insert) {
+                
+                if (id had to be changed by server) {
+                    change the id of the record (on local db) that was synced the new id
+                        [there shouldn't be a conflict, but error check just in case!]
+                }
+            }
+            // Shouldn't need to do anything specific on an update action
+            
+            delete the current sync_action record from the local database
+                
+                        
+     }
+     While (server still has sync_actions) {
+        call server_sync_action()
+        wait for server's response (data from server should include
+        ***NEED TO FINISH
+     
+     
+     }
+                
+            
+        
+        
+        
+        
+        
+        
+        
+    (On server)
+    device_sync_action() receives data from device (one row of data from device's sync_actions data and table data)
+   if (action is insert) {
+        insert the record in the server's database explicity using device table's id#
+        if (there was an error due to an id# conflict) {
+            [this means new records have been added on both device & server]
+            insert the record in the server's database explicitly setting id as device_highest_id + 1
+            if (there's still an error to an id# conflict) {
+                [this means there are more records on server than device]
+                insert the record in the server's database letting SQL AUTO_INCREMENT do its job
+            }
+        }
+            
+        send an indicator back to the device if the insert was successful or not AND the insert_id so that
+          device can have the same insert_id in its database
+        END
+            
+    }
+
+    if (action is delete) {
+        delete the record from the server's database            
+        send an indicator back to the device if the delete was successful or not
+        END
+     
+    }
+
+    if (action is update) {
+        check the timestamp of the actual table data and set flag server_version_newer as TRUE or FALSE 
+               accordingly
+ 
+        if (server_version_newer) {
+            send the device an indicator that the server version is more recent, and the data from this entry
+            END
+        }
+        else {
+            update the server's record with the table data from the device
+            send an indicator back to the device if the update was successful or not
+            END
+        }
+        
+    
+    }
+    
+    
+    server_sync_action() {
+        
+    
+    }
