@@ -6,6 +6,7 @@
                   Next step is to add the files to the github repo.  I don't know if I have to create
                   two different repos, one for the client, one for the server, or if I can somehow keep them in
                   the same repo.
+            - testing github with a new line to this file!
         
             - testing syncing - just created a debug function (on both sides) that will save the sync_tables
               so that I can see if any errors are occurring in the reduction
