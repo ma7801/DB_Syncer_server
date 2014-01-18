@@ -99,11 +99,11 @@ if($_POST['action'] === "delete") {
         // @TEST NEEDED
         
         // See what the conflicting server action is
-        if($server_record->sync_action === "update") {
+        if($server_record['sync_action'] === "update") {
             // @TEST NEEDED
 
             // Create time object for the server timestamp
-            $server_timestamp = strtotime($server_record->timestamp);
+            $server_timestamp = strtotime($server_record['timestamp']);
    
             // Create time object for the client timestamp
             $client_timestamp = strtotime($_POST['timestamp']);
@@ -132,17 +132,16 @@ if($_POST['action'] === "delete") {
                     " conflict policy.";
             }
         }
-        else if($server_record->sync_action === "delete") {
+        else if($server_record['sync_action'] === "delete") {
             // @TEST NEEDED
     
             // Delete vs. delete conflict -- remove the unneccessary 'delete' action record from server's 
             //  sync_actions table
             $sql = "DELETE FROM _dbs_sync_actions WHERE id=?";
             
-            $result = mysqli_prepared_query($mysql, $sql, "i", array($server_record->id));
+            $result = mysqli_prepared_query($mysql, $sql, "i", array($server_record['id']));
         
-            $response['message'] = "Delete vs Delete conflict...removed server delete action record, and " .
-             " deleted record on server.";
+            $response['message'] = "Delete vs Delete conflict...removed redundant server delete action record";
         }
     
     }
@@ -214,88 +213,83 @@ else if($_POST['action'] === "update") {
         // (We'll need to check the timestamps, so load them into time objects)
      
         // Create time object for the server timestamp
-        $server_timestamp = strtotime($server_record->timestamp);
+        $server_timestamp = strtotime($server_record['timestamp']);
 
         // Create time object for the client timestamp
         $client_timestamp = strtotime($_POST['timestamp']);
       
     
-        // Situation 1: server has 'delete' action, and it is more recent, conflict policy is to enact latest 
-        //   action (delete wins)
-
-        if($server_record->sync_action === "delete" && ($server_timestamp > $client_timestamp) && 
-         $conflict_policies['update_vs_delete'] === LATEST_ACTION) {
-            $response['message'] = "Ignoring update request, since server has a more recent conflcting" . 
-             " 'delete' action for this record and per conflict policy, the more recent server action " .
-             "will be enacted.";
-            respond_success($response);
+        
+        if($server_record['sync_action'] === "delete") {
+            // Situation 1: server has 'delete' action, and it is more recent, conflict policy is to enact latest 
+            //   action (server's delete wins)
+            if(($server_timestamp > $client_timestamp) &&
+                 $conflict_policies['update_vs_delete'] === LATEST_ACTION) {
+                $response['message'] = "Ignoring update request, since server has a more recent conflcting" . 
+                 " 'delete' action for this record and per conflict policy, the more recent server action " .
+                 "will be enacted.";
+                respond_success($response);
+            }
+            // Situation 2: server has 'delete' action but policy is ALWAYS_UPDATE or 
+            //  Situation 3: server has 'delete', client timestamp newer
+            else {
+                // Remove the server's delete sync record so that it doesn't get deleted on client during
+                //  server to client sync
+                $sql = "DELETE FROM _dbs_sync_actions WHERE record_id=? AND table_name=?";
+                $result = mysqli_prepared_query($mysql, $sql, "is", array($_POST['id'], $_POST['table']));
+                if(!$result) {
+                    respond_error("Error deleting sync record during delete/update conflict:" . $mysql->error,
+                    $mysql->errno);
+                }
+                // No "respond_success" here because we want the code after the other else if's to execute so 
+                //  that server data record is updated
+            }
         }
-        // Situation 2: server has 'update' action, and policy is to keep both updated records
-        else if($server_record->sync_action === "update" && 
+        // Situation 4: server has 'update' action, and policy is to keep both updated records
+        else if($server_record['sync_action'] === "update" && 
             $conflict_policies['update_vs_update'] === KEEP_BOTH) {
             
             // Insert the record from the client
             $result = insert_record($mysql);
             
+            
             // Indicate to the client that a new record has been added with conflicting data
-            $response['err'] = 1;
-            $response['message'] = "Records updated on both client and server have been updated.  Per " .
+            $response['message'] = "Records on both client and server have been updated.  Per " .
              "conflict policy, keeping both records.  Client record has been inserted into server " .       
              "database with a new id.";
             $response['new_id'] = $result['new_id'];
+            $response['has_new_id'] = 1;
+            
+            // Change the server's update record to an insert so that the client will get a copy
+            $sql = "UPDATE _dbs_sync_actions SET sync_action='insert' WHERE record_id=? AND table_name=?";
+            $result = mysqli_prepared_query($mysql, $sql, "is", array($_POST['id'], $_POST['table']));
+            if(!$result) {
+                respond_error("Error updating server record when trying to keep both records:" . $mysql->error,
+                $mysql->errno);
+            }
+            else {
+                respond_success($response);
+            }
         }
-    }
-    
-    // Situation 3: server has 'delete' action, it's older and policy is latest action (client's update wins)
-    // Situation 4: server has 'update' action, it's older and policy is latest action (client's update wins)
-    // Situation 5: server has 'delete' action, policy is always update (client's update wins)
-    // Situation 6: no conflict
-    
-    /*
-    //First, lookup the record on the server to see if it is newer
-    $stmt = $mysql->prepare("SELECT timestamp FROM " . $db['timestamp_table'] . " WHERE record_id=?");
-    
-    $stmt->bind_param("i", $_POST['id']);
-    $stmt->execute();
-    
-    //$result = $mysql->query($sql);
-    
-    
-    
-    //echo "\nresult: ";
-    //print_r($result);
-    //$row = $result->fetch_array();
-    //echo "\nrow: ";
-    //print_r($row);
-    
-    if(!$stmt->affected_rows) {
-        // Return an error
-        respond_error("Could not select timestamp record on server database: " . $mysql->error, $mysql->errno);
-    }
-    else {
-        //Get the timestamp from the result from the server database
-        $stmt->bind_result($timestamp_string);
-        $stmt->fetch();
-        $server_timestamp = strtotime($timestamp_string);
+        // Situation 5: server has 'update' action, it's newer and policy is latest action (server's update wins)
+        else if($server_record['sync_action'] === "update" && 
+            $conflict_policies['update_vs_update'] === LATEST_ACTION &&
+            ($server_timestamp > $client_timestamp)) {
+                // Ignore the client's record, just send back a response
+                $response['message'] = "Records on both client and server have been update.  Per conflict " .
+                    "policy, the most recent update (latest action) will be synced.  Ignoring the older " .
+                    "client record.";
+                respond_success($response);
+            
+        }
        
-        //Convert the client's timestamp string to a time
-        $client_timestamp = strtotime($_POST['timestamp']);
-        
-        //***NEED TO TEST 
-        if($server_timestamp >= $client_timestamp) {
-            $response = array(
-                "err" => 0,
-                "message" => "Server version is the same or newer. ",
-                "action" => "update",
-                "has_new_id" => 0,
-                "new_id" => 0,
-                "old_id" => $_POST['id'],
-                "table" => $_POST['table'], 
-                "id_col_name" => $_POST['id_col']);
-            respond_success($response);
-        }
-        else {*/
-            // Create the update sql statement
+    }
+    
+    // All situations where the client record will be accepted by server:   
+    // Situation 6: server has 'update' action, it's older and policy is latest action (client's update wins)
+    // Situation 7: no conflict
+    
+    // Create the update sql statement
     $sql = "UPDATE " . $_POST['table'] . " SET ";
     
     $cur = 0;
@@ -329,24 +323,11 @@ else if($_POST['action'] === "update") {
     
     } 
       
-/*
-      
-            // Update the timestamps table with the timestamp from the client
-            $sql = "UPDATE " . $db['timestamps_table'] . " SET timestamp=? WHERE record_id=?";
-            
-            $result = mysqli_prepared_query($mysql, $sql, "si", array($_POST['timestamp'], $_POST['id']));
-            
-            if(!result) {
-                respond_error("Error updating timestamps table on server: " . $mysql->error, $myql->errno);
-            }
-  */    
-            
-            // Success!  Respond back to the client with some info and a success message
+
+     if(!isset($response['message'])) {       
+        $response['message'] = "No conflict or a conflict of no consequence occurred.";
+     }
      respond_success($response);
-     /*   }
-    
-    }*/
-  
 
 }
 else if ($_POST['action'] === "get_server_sync_data") {

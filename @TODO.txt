@@ -1,25 +1,16 @@
 - TODO / NOTES:
-        - currently working on (1/5/14)
-            - uploading to github 
-                - just finished separating DB_Syncer client from my HomeworkChecker app (I had to upgrade
-                  PhoneGap and Android SDK in the process).  Tested just DB_Syncer and seems to work fine.
-                  Next step is to add the files to the github repo.  I don't know if I have to create
-                  two different repos, one for the client, one for the server, or if I can somehow keep them in
-                  the same repo.
-            - testing github with a new line to this file!
-        
-            - testing syncing - just created a debug function (on both sides) that will save the sync_tables
-              so that I can see if any errors are occurring in the reduction
-              - there are some bugs -- certain records aren't synced, and client has a record id of '0' which
-                shouldn't exist as ids on both sides should start at '1'; look at reduction on both sides,
-                and then conflict resolution
-                - it seems these bugs are no longer - at least during a clean sync (i.e. both server and client
-                  have no data in common before sync)
-                  
-             - another bug: server sync seems to be happening twice (getting "primary key errors" from server)
-               I think that the server to client sync is being invoked twice.  Before fixing this, I want to 
-               upload code to github and start versioning!
-              
+        - currently working on (1/17/14)
+           
+            - testing syncing 
+                - it seems that all the bugs I found have been worked out, however a double-check of every
+                sync conflict situation would be nice - probably do this AFTER the next two items below...
+             
+             - rewrite sync table reducer so that it will break out of inner for-loop if the following record
+               does not have the same record id
+               - need to query with ORDER BY record_id (then timestamp) for this to work
+               
+             - NEED to rewrite sync reducer to handle multiple tables!!! (only compares record_ids right now, not
+               the table names!)
               
         - next steps 
             - check errors in server function that generates random actions
@@ -48,6 +39,12 @@
               lock the database when a series of operations is running (say the sync table is being reduced). 
               Also, have a method that "polls" the database to see if it is unlocked - maybe have it poll every
               200 ms for a maximum of 10 times or something (make these settings adjustable).
+              - update on this 1/14/14: I have made some revisions that should take care of timing issues.  
+                The revisions include the use of callbacks - making sure that one sql call completes before
+                another piece of code is executed.  It is sometimes tricky to get all of the code organized
+                with a bunch of callbacks, but it is doable.  Right now, the code may have some dependent
+                operations that are executing simultaneously; the goal with callbacks is to prevent this from
+                happening.
           
         
         

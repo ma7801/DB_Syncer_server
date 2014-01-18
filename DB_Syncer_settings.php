@@ -57,7 +57,7 @@ Why is the update_vs_delete policy ALWAYS_UPDATE as default?
 */
 
 $conflict_policies['update_vs_delete'] = ALWAYS_UPDATE;
-$conflict_policies['update_vs_update'] = KEEP_BOTH;
+$conflict_policies['update_vs_update'] = LATEST_ACTION;
 
 
 

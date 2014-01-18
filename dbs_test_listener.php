@@ -3,6 +3,12 @@
 /* Test server listener for a web app using DB_Syncer */
 require_once("DB_Syncer.php");
 
+// DEBUG - log errors in a file
+ini_set("log_errors", 1);
+ini_set("error_reporting", E_ALL);
+ini_set("error_log", "/var/www/DB_Syncer/errors.log");
+error_log("test");
+
 $mysqli = open_database();
 
 $dbs = new DB_Syncer($mysqli);
