@@ -61,9 +61,9 @@ DB_Syncer::reduce_sync_table($mysql);
 
 if($_POST['direction'] === "client_to_server") { 
     // First check to see if there are any local actions (conflicts) for the record_id sent by client
-    $sql = "SELECT * FROM _dbs_sync_actions WHERE record_id=?";
+    $sql = "SELECT * FROM _dbs_sync_actions WHERE record_id=? AND table_name=?";
 
-    $result = mysqli_prepared_query($mysql, $sql, "i", array($_POST['id']));
+    $result = mysqli_prepared_query($mysql, $sql, "is", array($_POST['id'], $_POST['table']));
 
     if($result) {
         // Set a flag 

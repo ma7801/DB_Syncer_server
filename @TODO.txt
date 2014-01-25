@@ -1,104 +1,34 @@
 - TODO / NOTES:
-        - currently working on (1/17/14)
-           
-            - testing syncing 
-                - it seems that all the bugs I found have been worked out, however a double-check of every
-                sync conflict situation would be nice - probably do this AFTER the next two items below...
-             
-             - rewrite sync table reducer so that it will break out of inner for-loop if the following record
-               does not have the same record id
-               - need to query with ORDER BY record_id (then timestamp) for this to work
-               
-             - NEED to rewrite sync reducer to handle multiple tables!!! (only compares record_ids right now, not
-               the table names!)
+        - currently working on 
+            
+             - should write database comparer
               
         - next steps 
-            - check errors in server function that generates random actions
-            - keep testing, and look for issues with 'update' timestamp conflicts
-            - sync table reducer super slow for large tables
-                - can ORDER BY record_id, then timestamp, and if next 
-            - test in the case of multiple data tables
+
             
-            - upload to github!
-                - before I do so, need to make DB_Syncer on client independent of my homework checker program!
-           
             - need to allow a sync to be initiated on server end - need to code DB_Syncer::sync()
-           
-           
-            - TEST server to client syncs with updates and deletes, and combinations - this should test some
-              new code I modified/added 12/19 to DB_Syncer.js in _server_to_client_sync_callback() and the
-              new function I added to handle some timing issues _execute_server_action() (tests with just
-              inserts (and where no conflicts would occur) seems to be working fine)
-       
-            - TEST syncing by adding data & actions on both ends; if bugs:
-                - make sure sync tables reducing property (will have to comment/modify code to see table 
-                  (reductions)
-                - look for conflict issues - insert ids, timestamps                         
+                - may not make sense since we can't assume the server can't assume the client is "up" at any
+                  given time
+                  
+            - test with a real database
             
-            - some overall concerns: timing; I may have to set up some kind of system that will
-              lock the database when a series of operations is running (say the sync table is being reduced). 
-              Also, have a method that "polls" the database to see if it is unlocked - maybe have it poll every
-              200 ms for a maximum of 10 times or something (make these settings adjustable).
-              - update on this 1/14/14: I have made some revisions that should take care of timing issues.  
-                The revisions include the use of callbacks - making sure that one sql call completes before
-                another piece of code is executed.  It is sometimes tricky to get all of the code organized
-                with a bunch of callbacks, but it is doable.  Right now, the code may have some dependent
-                operations that are executing simultaneously; the goal with callbacks is to prevent this from
-                happening.
-          
-        
-        
-            - test conflicts that occur with timestamps (i.e. update conflicts)
+            - functions on client and server to indicate sync status (unsynced, syncing, complete)
             
-      
-          
-        - need to finish algorithm tweaks on server side (i.e. conflict detection/resolution, new location of
-          timestamps in sync table rather than separate table, etc.) (DONE BUT NOT TESTED)
-          
-        - need to tweak the client code for timestamps in sync table, not separate table (DONE BUT NOT TESTED)
-      
-  
- 
-    - coding DB_Syncer_listener.php:
-        
-    
-        - 11/22 - Just finished testing test page (dbs_test.php) to put values into the database;  Next step:
-            Need to code DB_Syncer->sync().
-    
-        - 11/14: lots of testing needed; changed, but haven't tested (still finishing apparatus to test!):
-            Recently changed:        
-            DB_Syncer_listener "update" code (line 198+)
-            Added file "DB_Syncer.php" (class def. for DB_Syncer) - constructor seems to work (empty tables
-               created, "log" functions need testing
-            Added file "dbs_test.php" (php code that will instantiate a DB_Syncer object)
-                - still finishing this need to add code to insert, update, delete records to test
-                  DB_Syncer class
-            
-        
-        need to change the 'update' code on server (line 195+ in DB_Syncer_listener.php)  -- it needs
-          to compare timestamps in new timestamps tables (get rid of the "timestamp_field" index on client
-          and server)
-          
-        - Next: Need to account for differences in server & client dates/clocks for timestamps (maybe just
-          set the current_timestamp on both client & server with greenwich mean time -- it looks like the
-          client (device) already does this automatically)
-        - Then: code syncing for the other direction (i.e. go through _sync_actions table on server and
-          send changes to client).  Hopefully this will go quicker since I've already coded on direction!
-          
-        - Then: test with my actual database, not the test database
-        - Would be nice: to have a handler to create the database on the server if it doesn't exist; 
-          would need to look up datatypes of each column in a record and submit that along with the data 
-          (probably some SQL function to do this)
+            - allow developer to detect sync error - I think this will need to be done with a callback passed
+              to sync()
+              
+            - handle the situation where there is no database or table on the server; create them -- send a 
+            request to the client to send back the structure of each table and create it dynamically
 
-
-        - Debugging note: if you need to see messages from DB_Syncer_listener on the console, you have to
-          change the datatype argument in the $.post function on the client to "text" instead of "json"      
-      
-      
-        - Need to put control of creating the table in DB_Syncer since certain triggers must be created, or
-          at least an existing table/database needs to be 'initialized' (both on the server and the client)
-          In order to make sure that UTC/GMT times are used for timestamps; must use following triggers:
           
+KNOWN BUGS:
+
+          - bug after rewriting sync reducer to break inner for loop if no repeat (may be coincindental): 
+          PRIMARY KEY error; a record on client should have its ID changed, but its not, and when server sends a
+          record with same id (that should have been changed on client) PRIMARY KEY error occurs; sync records
+          indicating that the record wasn't synced were still present; did another sync with no problems.
+          But two syncs shouldn't be necessary.       
+
 CODE CLEANUP:
 
         - make sure the arguments for phonegap database function callbacks (transaction, executeSql) are
@@ -106,20 +36,21 @@ CODE CLEANUP:
           
         - removed any unecessary variables, class properties, methods, old code
         
-        - upload to github for version control!!!
-          
+        - be consistent with name function with underscores -- i.e., only methods call by other methods?
+           
             
 MAYBE:
-        - In web db, create own set of tables per each user, like 0001_classes (for HW checker, not DB_Syncer)
-        
         - Use triggers to automate creating records in sync_table instead of relying on user to use "log_" methods
+
+        - Would be nice: to have a handler to create the database on the server if it doesn't exist; 
+          would need to look up datatypes of each column in a record and submit that along with the data 
+          (probably some SQL function to do this)
         
             
-POSSIBLE BUGS (haven't tested for yet):
+MISC NOTES:
 
-        - possible bug introduced - timing issue with 'is_last_record' on client -- I changed it to a class
-          property instead of a parameter that gets passed from subsequent methods.  Changing it back should
-          fix this.
+        - Debugging note: if you need to see messages from DB_Syncer_listener on the console, you have to
+          change the datatype argument in the $.post function on the client to "text" instead of "json"      
 
 
             

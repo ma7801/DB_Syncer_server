@@ -66,7 +66,7 @@ class DB_Syncer {
         
         }
         
-        // Insert the default values - if already there, will generate code 1022
+        // Insert the default values - if already there, will generate code 1062
         $sql = "INSERT INTO _dbs_vars (id, db_locked, sync_table_reduced) VALUES (1, 0, 0) ";
 
         $result = $this->mysqli->query($sql);
@@ -78,7 +78,18 @@ class DB_Syncer {
                 
                 $this->error_handler("Error in setting values of _dbs_vars table: " . $this->mysqli->error, 
                           $this->mysqli->errno);
-            }      
+            }
+            /*else {
+                $sql = "UPDATE _dbs_vars SET db_locked=0, sync_table_reduced=0, WHERE id=?";
+                $result = mysqli_prepared_query($this->mysqli, $sql, "i", 1);
+                
+                if(!$result) {
+                    $this->error_handler("Error reseting values of _dbs_vars table: " . $this->mysqli->error,
+                        $this->mysqli->errno);
+                
+                }
+            
+            } */     
         }
         
                 
@@ -234,7 +245,7 @@ class DB_Syncer {
     	
     	
     	// Load in the sync actions table
-        $sql = 	"SELECT * FROM _dbs_sync_actions ORDER BY timestamp, id";
+        $sql = 	"SELECT * FROM _dbs_sync_actions ORDER BY table_name, record_id, timestamp";
         
         $result = $db->query($sql);
         
@@ -254,6 +265,7 @@ class DB_Syncer {
 
    		  
         $record_ids_processed = array(); // An array of the record_ids that have been handled
+        $tables_processed = array(); // Once we process an entire table's sync records, we push it on here
 
 		// Compare each of the ids of each record to that of the other and see if there are any
 		//  repeated ids (if so, handle the reduction
@@ -263,17 +275,36 @@ class DB_Syncer {
  	        //print_r($older_indices);
  	        
  	      	// Skip this record_id if it's already been processed
-    		if (in_array($sync_table[$left]['record_id'], $record_ids_processed)) {
+    		if (in_array($sync_table[$left]['record_id'], $record_ids_processed) ||
+    		    in_array($sync_table[$left]['table_name'], $tables_processed)) {
     			continue;
     		}
-    			
-    		  
+    	    
+    	    // Indicate that the current record has been processed so it will be skipped in the future
+    	    array_push($record_ids_processed, $sync_table[$left]['record_id']);
+			
+			
 			$latest_index = -1;  // Indication that there is no duplicate
 			for ($right = $left + 1; $right < $num_actions; $right++) {
-				
+			
+			    // See if this is the last record of the current table_name
+			    if ($sync_table[$left]['table_name'] !== $sync_table[$right]['table_name']) {
+			        // Indicate that every record in the current table has processed; we need to do this
+			        //  since we're reseting the record_ids_processed array below, and we don't want any
+			        //  other records in the current table_name processed - we're done with it
+			        array_push($tables_processed, $sync_table[$left]['table_name']);
+			        
+			        // Reset the record_ids_processed array
+			        $record_ids_processed = array();
+			        
+			        // We're not going to find anymore matches; stop looking
+			        break;
+			    }
+	    		
+	    		// See if the record ids match (we already know the table names do)
 				if ($sync_table[$left]['record_id'] === $sync_table[$right]['record_id']) {
 					// The "left" record_id matches the "right" record_id; 
-					    						
+					
 					// In case that this isn't the latest record, we need to save a list of all
 					//  previous "latest" indices.  (i.e. if latest index has been set)
 					if ($latest_index >= 0) {
@@ -285,9 +316,14 @@ class DB_Syncer {
 					//   is at this point in the loop)
 					$latest_index = $right;
 				}
+				else {
+				    // Since record_ids are in order, we won't find the 'left' record id any further down
+				    //  the table, so stop looking
+				    break;
+				
+				}
 			}
 				
-			array_push($record_ids_processed, $sync_table[$left]['record_id']);
 				
 			// If there was more than one action for a record_id
 			if ($latest_index >= 0) {

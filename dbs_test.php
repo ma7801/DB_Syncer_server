@@ -11,6 +11,7 @@ Action:
     <option value="delete">Delete</option>
     <option value="random_data">Generate Random Data</option>
     <option value="random_actions">Generate Random Actions</option>
+    <option value="reset">Reset</option>
 </select>
 <input type="submit" />
 
