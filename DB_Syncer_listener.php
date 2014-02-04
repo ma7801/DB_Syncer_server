@@ -53,8 +53,35 @@ require_once("mysqli_prepared.php");
 require_once("DB_Syncer.php");
 require_once("DB_Syncer_settings.php");
 
+
+
+if($_POST['action'] === "initialize_db") {
+    
+    $err = DB_Syncer::initialize_db($_POST['remote_db'], $_POST['table_names'], $_POST['table_defs']);
+    if(!$err) {
+        respond_success($response);
+    }
+    else {
+        respond_error("Error creating database on server", $err);
+    }
+
+
+}
+
+
+// Make sure the specified database exists on the server
+if(!DB_Syncer::db_exists($_POST['remote_db'])) {
+    respond_error("Database does not exist on server.  Call method initialize_server_db on " .
+                "client to create and initialize the database on the server.", 1);
+    
+
+}
+
+
 // Open the server database
 $mysql = open_database();
+
+
 
 // Reduce the sync table
 DB_Syncer::reduce_sync_table($mysql);
@@ -174,10 +201,19 @@ else if($_POST['action'] === "insert") {
     if(!$result) {
         respond_error("Error inserting the new records: " . $mysql->error, $mysql->errno);
     }
-    //*** NEED TO CODE: insert_id handling from algorithm     
-    //  send data back to client
-    // temp message:
     else {
+        // Delete the automatically inserted sync record - we don't want this created during sync, only if the
+        //  developer actually inserts a record in their own code
+        $sql = "DELETE FROM _dbs_sync_actions WHERE record_id=? AND table_name=?";
+        
+        $result_sync_delete = mysqli_prepared_query($mysql, $sql, "is", 
+                        array($mysql->insert_id, $_POST['table']));
+        
+        if(!$result_sync_delete) {
+            respond_error("Error deleting automatically generated sync record.");
+        
+        }
+        
         $response = array(
             "err" => $result['mysql_errno'],
             "message" => $result['mysql_error'] === "" ? "Inserted record on server." : $result['mysql_error'],
@@ -322,12 +358,22 @@ else if($_POST['action'] === "update") {
         respond_error("Error updating record on server: " . $mysql->error, $mysql->errno);
     
     } 
-      
-
-     if(!isset($response['message'])) {       
-        $response['message'] = "No conflict or a conflict of no consequence occurred.";
-     }
-     respond_success($response);
+    
+    // Delete the automatically inserted sync record - we don't want this created during sync, only if the
+    //  developer actually inserts a record in their own code
+    $sql = "DELETE FROM _dbs_sync_actions WHERE record_id=? AND table_name=?";
+    
+    $result = mysqli_prepared_query($mysql, $sql, "is", array($mysql->insert_id, $_POST['table']));
+    
+    if(!$result) {
+        respond_error("Error deleting automatically generated sync record.");
+    
+    }
+  
+    if(!isset($response['message'])) {       
+       $response['message'] = "No conflict or a conflict of no consequence occurred.";
+    }
+    respond_success($response);
 
 }
 else if ($_POST['action'] === "get_server_sync_data") {
@@ -577,8 +623,7 @@ function insert_record($mysql) {
     $sql .= ") VALUES (";
 
     for($cur = 0; $cur < sizeof($_POST['data_values']); $cur++) {
-        // @TEST NEEDED
-        
+  
         //If this is the id column and there was an id conflict
         if($_POST['data_columns'][$cur] === $_POST['id_col'] && $id_conflict) {
             
@@ -614,38 +659,7 @@ function insert_record($mysql) {
 
     $sql .= ")";
     
-    
-    //***DEBUG:
-    //echo "the sql statement: " . $sql;
-    //echo "datatypes: " . $datatypes;
-/*    
-    //If the id is to be skipped due to conflict, remove the id from the data values array
-    if($has_new_id) {
-        unset($_POST['data_values'][$id_index]);
-        
-        $_POST['data_values'] = array_values($_POST['data_values']);
-        
-    }
-  */ 
-  
-     
-     
-    
-    //DEBUG:
-    /*echo "datatypes: " . $datatypes . "\n";
-    echo "data_values: " . print_r($_POST['data_values'], 1) . "\n";
-    echo "sql: " . $sql;
-    
-    //$result = array($mysql->query("INSERT INTO test_data (data) values (5)"));
-/*    $stmt = $mysql->prepare($sql);
-    $stmt->bind_param($datatypes, $_POST['data_values'][1], $_POST['data_values'][2], $_POST['data_values'][3]);
-    $stmt->execute();
-    $result = array('affected_rows' => $stmt->affected_rows);
-    $stmt->close();
- */
-     
-     
-    // Re-index the data_values array, since the id column may have been skipped
+   // Re-index the data_values array, since the id column may have been skipped
     $data = array_values($data);
         
     $result = mysqli_prepared_query($mysql, $sql, $datatypes, 
@@ -664,7 +678,7 @@ function insert_record($mysql) {
         return $result;
     }
     
-       //echo "result: " . print_r($result,1);
+  
  
 
 }

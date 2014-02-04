@@ -1,24 +1,19 @@
 - TODO / NOTES:
-        - currently working on 
-            
-             - should write database comparer
-              
+        - 2/4/14: syncing tested successfully with triggers (and code to delete records created by triggers
+        when we don't want them)
+       
         - next steps 
 
-            
-            - need to allow a sync to be initiated on server end - need to code DB_Syncer::sync()
-                - may not make sense since we can't assume the server can't assume the client is "up" at any
-                  given time
-                  
-            - test with a real database
-            
             - functions on client and server to indicate sync status (unsynced, syncing, complete)
             
             - allow developer to detect sync error - I think this will need to be done with a callback passed
               to sync()
+            
+            - locking of the database (on both ends) if a sync is happening -- in other words, handle the case
+              of a sync being initiated while a sync is in progress
               
-            - handle the situation where there is no database or table on the server; create them -- send a 
-            request to the client to send back the structure of each table and create it dynamically
+           
+                
 
           
 KNOWN BUGS:
@@ -34,18 +29,42 @@ CODE CLEANUP:
         - make sure the arguments for phonegap database function callbacks (transaction, executeSql) are
           correct (i.e. tx, err)
           
-        - removed any unecessary variables, class properties, methods, old code
+        - change config variables on client to start with "__" in case developer uses same var names
+          
+        - remove any unecessary variables, class properties, methods, old code
         
-        - be consistent with name function with underscores -- i.e., only methods call by other methods?
-           
+        - be consistent with naming function with underscores -- i.e., only methods called by other methods?
+        
+        - remove extra code having to do with logical deletes - log. deletes should be able to be implemented 
+          independent of my code since they are bascally just an update.  Rewrite code for "deletes" for
+          actual deletes.  If a developer uses logical deletes, they will be treated as updates automatically
+          due to triggers
+       
+         - on server: put any interactions with the database in DB_Syncer as either a static function or method, 
+        in good MVC fashion.  DB_Syncer_listener than acts as the controller, DB_Syncer as the model.
+        
+         - better consistency in naming of items in JSON object sent by server during client to server and
+          server to client --> different names can make debugging confusing (i.e. 'table' vs 'table_name', etc.)
+            
             
 MAYBE:
-        - Use triggers to automate creating records in sync_table instead of relying on user to use "log_" methods
 
-        - Would be nice: to have a handler to create the database on the server if it doesn't exist; 
-          would need to look up datatypes of each column in a record and submit that along with the data 
-          (probably some SQL function to do this)
-        
+        - need to allow a sync to be initiated on server end - need to code DB_Syncer::sync()
+           - may not make sense since we can't assume the server can't assume the client is "up" at any
+             given time
+       
+        - should write database comparer
+       
+             
+        - ability to do a full sync, not just an "incremental" sync -- databases on both ends will be compared
+            and synced.  This would require timestamps to be in the data tables.
+                - this would also allow a database to be essentially "copied" from client to server or vice
+                versa on initial setup.  So if dbs is being used for an app for an existing website, the web
+                database can be copied to the client (for a particular user of course).  And if an existing
+                app is implementing offline data sync, it can copy its database to the server.
+                
+              
+          
             
 MISC NOTES:
 

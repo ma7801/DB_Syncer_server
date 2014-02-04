@@ -20,18 +20,15 @@ if ($_POST['action'] === "insert") {
     $sql = "INSERT INTO test_values (data) VALUES (" . $_POST['value'] . ")";
     $mysqli->query($sql);
     $id = $mysqli->insert_id;
-    $dbs->log_insert("test_values", $id);
 
 }
 else if ($_POST['action'] === "update") {
     $sql = "UPDATE test_values SET data=" . $_POST['value'] . " WHERE id=" . $_POST['id'];
     $mysqli->query($sql);
-    $dbs->log_update("test_values", $_POST['id']);
 }
 else if ($_POST['action'] === "delete") {
     $sql = "UPDATE test_values SET _is_deleted=1 WHERE id=" . $_POST['id'];
     $mysqli->query($sql);
-    $dbs->log_delete("test_values", $_POST['id']);
 
 
 
@@ -46,7 +43,6 @@ else if ($_POST['action'] === "random_data") {
 	for ($cur = 0; $cur < $num_records; $cur++) {
 		$sql = "INSERT INTO test_values (data) VALUES (" . rand(0,999) . ")";
         $mysqli->query($sql);
-        $dbs->log_insert("test_values", $mysqli->insert_id);
         
         $record = get_random_user_record($mysqli, $max_user_records);
         
@@ -58,7 +54,7 @@ else if ($_POST['action'] === "random_data") {
         if($mysqli->errno) {
             echo ("Error: " . $mysqli->error);
         }
-        $dbs->log_insert("test_users", $mysqli->insert_id);
+ 
 	}
 	
 
@@ -85,7 +81,7 @@ else if ($_POST['action'] === "random_actions") {
 		if ($cur_action === "insert") {
 			$sql = "INSERT INTO test_values (data) VALUES (" . rand(0, 999) .")";
 			$mysqli->query($sql);
-			$dbs->log_insert("test_values", $mysqli->insert_id);
+			
 			$num_records++;
 			
 			// Get a random user record
@@ -99,8 +95,7 @@ else if ($_POST['action'] === "random_actions") {
             if($mysqli->errno) {
                 echo ("Error: " . $mysqli->error);
             }
-            $dbs->log_insert("test_users", $mysqli->insert_id);
-
+            
 		} 
 		else if ($cur_action === "update") {
 
@@ -117,7 +112,7 @@ else if ($_POST['action'] === "random_actions") {
 
 			$sql = "UPDATE test_values SET data=-" . rand(0,999) . " WHERE id=" . $random_id;
 			$mysqli->query($sql);
-			$dbs->log_update("test_values", $random_id);
+			
 			
 			$record = get_random_user_record($mysqli, $max_user_records);
 			$sql = 'UPDATE test_users SET name="UPDATED_ON_SERVER ' . $record['name'] . '", email="' . $record['email'] .
@@ -126,19 +121,19 @@ else if ($_POST['action'] === "random_actions") {
             if($mysqli->errno) {
                 echo ("Error: " . $mysqli->error);
             }
-            $dbs->log_update("test_users", $random_id);
+           
 		} 
 		else if ($cur_action === "delete") {
 			$random_id = rand(1,$num_records);
 		
 			$sql = "UPDATE test_values SET _is_deleted=1 WHERE id=" . $random_id;
             $mysqli->query($sql);
-   			$dbs->log_delete("test_values", $random_id);
+   			
             array_push($deleted_records, $random_id);
             
             $sql = "UPDATE test_users SET _is_deleted=1 WHERE id=" . $random_id;
             $mysqli->query($sql);
-   			$dbs->log_delete("test_users", $random_id);
+   			
             
 		}
 	}
@@ -159,7 +154,7 @@ else if ($_POST['action'] === "sync") {
 function open_database() {
     require_once("DB_Syncer_settings.php");
     
-    $mysql = new mysqli($db['hostname'], $db['username'], $db['password'], "test");
+    $mysql = new mysqli($db['hostname'], $db['username'], $db['password'], "_sync_test_two");
     
     if($mysql->connect_errno) {
         

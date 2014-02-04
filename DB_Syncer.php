@@ -92,30 +92,241 @@ class DB_Syncer {
             } */     
         }
         
+            
+
+    }
+    
+    public static function db_exists($db_name) {
+        
+        // ***NEEDS TESTING
+        
+        require("DB_Syncer_settings.php");
+    
+        $mysql = new mysqli($db['hostname'], $db['username'], $db['password']);
+   
+        $db_exists = $mysql->select_db($db_name);
+        
+        $mysql->close();
+        
+        return $db_exists;
+    }
+    
+    public static function initialize_db($db_name, $table_names, $table_defs) {
+        
+        require("DB_Syncer_settings.php");
+    
+        // ***NEEDS TESTING
+        
+        // don't forget to convert sqlite definitions to mysql!! 
+        //  - get rid of any double quotes
+        //  - change AUTOINCREMENT to AUTO_INCREMENT
+        
+        // AND don't forget to create the triggers
+        
+        $mysql = new mysqli($db['hostname'], $db['username'], $db['password']);
+        
+        if($mysql->connect_errno) {
+            $response['err'] = $mysql->connect_errno;
+            $response['message'] = "Could not connect to MySQL ";
+            return $response;
+        }
+        
+        // Create the database
+        $sql = "CREATE DATABASE IF NOT EXISTS " . $db_name;
+        $mysql->query($sql);
+        
+        if($mysql->errno) {
+            $response['err'] = $mysql->errno;
+            $response['message'] = "Error creating database on server: " . $mysql->error;
+            return $response;
+            
+        }
+        
+        // Select the newly created database
+        $mysql->select_db($db_name);
+        
+        if($mysql->errno) {
+            $response['err'] = $mysql->errno;
+            $response['message'] = "Error selecting database on server: " . $mysql->error;
+            return $response;
+            
+        }
+        
+        
+        
+        // Convert the sqlite to mysql - get rid of any double quotes and change AUTOINCREMENT to AUTO_INCREMENT
+        $table_defs = str_ireplace("\"", "", $table_defs);
+        $table_defs = str_ireplace("AUTOINCREMENT", "AUTO_INCREMENT", $table_defs);
+        
+        echo "after sqlite->mysql table_defs:";
+        print_r($table_defs);
+        
+        // Create the tables, adding "IF NOT EXISTS" in create table statement if it isn't already there
+        for ($cur = 0; $cur < sizeof($table_defs); $cur++) {
+            $sql_array_temp = explode(" ", $table_defs[$cur]);
+            
+            echo ("sql_array_temp after exploding:");
+            print_r($sql_array_temp);
+            
+            // Remove any empty elements that might result from extra whitespace, and get rid of whitespace
+            $sql_array = array();
+            $sql_array_pos = 0;
+            for ($cur_word = 0; $cur_word < sizeof($sql_array_temp); $cur_word++) {
+                if(trim($sql_array_temp[$cur_word]) === "") {
+                   continue;
+                }
+                else {
+                    $sql_array[$sql_array_pos++] = trim($sql_array_temp[$cur_word]);
+                }
+            }
+            
+            echo ("sql_array after whitespace removal");
+            print_r($sql_array);
+            
+            $contains_if_not_exists = FALSE;
+            
+            // See if sql contains "if not exists" (case insensitive)
+            for ($cur_word = 0; $cur_word < sizeof($sql_array); $cur_word++) {
+                if(!strcasecmp($sql_array[$cur_word], "if") && 
+                  !strcasecmp($sql_array[$cur_word + 1], "not") && 
+                  !strcasecmp($sql_array[$cur_word + 2], "exists")) {
                 
-        /*
-        // Create the timestamps table if it doesn't already exist
-        $sql = "CREATE TABLE IF NOT EXISTS _dbs_timestamps (" .
-	           "id INTEGER PRIMARY KEY AUTO_INCREMENT, " .
-	           "table_name VARCHAR(20), " .
-	           "record_id INTEGER, " .
-	           "timestamp DATETIME)";
+                    $contains_if_not_exists = TRUE;
+                    break;
+                }
+            }
+            
+            // If sql statement does not contain "if not exists" add it in
+            if (!$contains_if_not_exists) {
+                // Look for 'table' within the sql statement
+                for ($cur_word = 0; $cur_word < sizeof($sql_array); $cur_word++) {
+                    if(!strcasecmp(trim($sql_array[$cur_word]), "table")) {
+                        // Insert "IF NOT EXISTS"
+                        $sql_array = array_merge(array_slice($sql_array, 0, $cur_word + 1), 
+                                array("IF", "NOT", "EXISTS"), array_slice($sql_array, $cur_word + 1));
+                        break;
+                    
+                    }
+                    
+                }
+            
+            }
+            
+            $def_stmt = implode(" ", $sql_array);
+            echo "sql_array: ";
+            print_r($sql_array);
+            echo "def_stmt: " . $def_stmt;
+            
+            $mysql->query($def_stmt);
+            
+            if($mysql->errno) {
+                $response['err'] = $mysql->errno;
+                $response['message'] = "Error creating table(s) on server: " . $mysql->error;
+                return $response;
+            }
         
-        $result = $this->mysqli->query($sql);
-        
-        if($this->mysqli->errno) {
-            $this->error_handler("Error in creating _dbs_timestamps table: " . $this->mysqli->error, 
-                    $this->mysqli->errno);
-        
-        }*/
+            // Create triggers
+            
+            // Insert trigger
+            
+            // (drop first if it exists)
+            $sql = "DROP TRIGGER IF EXISTS insert_" . $table_names[$cur];
+                        $mysql->query($sql);
+            
+            if($mysql->errno) {
+                $response['err'] = $mysql->errno;
+                $response['message'] = "Error dropping INSERT trigger on server: " . $mysql->error;
+                return $response;
+            
+            }
+            
+            
+            $sql = "CREATE TRIGGER insert_" . $table_names[$cur] . " AFTER INSERT ON " .
+                    $table_names[$cur] . " FOR EACH ROW " .
+                    " BEGIN " .
+
+                        "INSERT INTO _dbs_sync_actions (table_name, record_id, sync_action, timestamp) VALUES " .
+                        "('" . $table_names[$cur] . "', NEW.id, 'insert', UTC_TIMESTAMP());" .
+                    " END;";
+            
+            $mysql->query($sql);
+            
+            if($mysql->errno) {
+                $response['err'] = $mysql->errno;
+                $response['message'] = "Error creating INSERT trigger on server: " . $mysql->error;
+                return $response;
+            
+            }
+            
+            
+            // Update trigger
+            
+             // (drop first if it exists)
+            $sql = "DROP TRIGGER IF EXISTS update_" . $table_names[$cur];
+                        $mysql->query($sql);
+            
+            if($mysql->errno) {
+                $response['err'] = $mysql->errno;
+                $response['message'] = "Error dropping UPDATE trigger on server: " . $mysql->error;
+                return $response;
+            
+            }
+            
+            $sql = "CREATE TRIGGER update_" . $table_names[$cur] . " AFTER UPDATE ON " .
+                    $table_names[$cur] . " FOR EACH ROW " .
+                    " BEGIN " .
+                        "INSERT INTO _dbs_sync_actions (table_name, record_id, sync_action, timestamp) VALUES " .
+                        "('" . $table_names[$cur] . "', NEW.id, 'update', UTC_TIMESTAMP());" .
+                    " END;";
+            
+            $mysql->query($sql);
+            
+            if($mysql->errno) {
+                $response['err'] = $mysql->errno;
+                $response['message'] = "Error creating UPDATE trigger on server: " . $mysql->error;
+                return $response;
+            
+            }
+            
+            // Uncomment the following when non-logical deletes are implemented
+            
+            /*
+            // Delete trigger   
+            
+             // (drop first if it exists)
+            $sql = "DROP TRIGGER IF EXISTS delete_" . $table_names[$cur];
+                        $mysql->query($sql);
+            
+            if($mysql->errno) {
+                $response['err'] = $mysql->errno;
+                $response['message'] = "Error dropping DELETE trigger on server: " . $mysql->error;
+                return $response;
+            
+            }
+                     
+            $sql = "CREATE TRIGGER IF NOT EXISTS delete_" . $table_names[$cur] . " AFTER DELETE ON " .
+                    $table_names[$cur] . " FOR EACH ROW " .
+                    " BEGIN " .
+                        "INSERT INTO _dbs_sync_actions (table_name, record_id, sync_action, timestamp) VALUES " .
+                        "('" . $table_names[$cur] . "', OLD.id, 'delete', UTC_TIMESTAMP());" .
+                    " END;";
+            
+            $mysql->query($sql);
+            
+            if($mysql->errno) {
+                $response['err'] = $mysql->errno;
+                $response['message'] = "Error creating DELETE trigger on server: " . $mysql->error;
+                return $response;
+            
+            }
+            */
+            
+            // Create the _dbs tables by calling the constructor
+            $temp = new DB_Syncer($mysql);          
+                
+        }
     }
-    
-    public function sync() {
-    
-        // Meant for a user to initiate a sync manually from server code
-        // @NEED TO CODE
-    }
-    
+    /*
     public function log_delete($table, $id) {
         $this->log_sync_action($table, $id, "delete");
     }
@@ -177,10 +388,11 @@ class DB_Syncer {
         if(!$result) {
              $this->error_handler("Error inserting/updating timestamp record: " . $this->mysqli->error, 
                                     $this->mysqli->errno);
-        }*/
+        }
         
          
     }
+    */
      
     private function error_handler($msg, $errno) {
         die($msg . " (Error number " . $errno . ")<br>");
