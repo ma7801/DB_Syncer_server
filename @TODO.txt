@@ -1,6 +1,5 @@
 - TODO / NOTES:
-        - 2/4/14: syncing tested successfully with triggers (and code to delete records created by triggers
-        when we don't want them)
+        - 4/8/14: Just finished some sprucing up on passed callbacks to sync.  Coded and tested
        
         - next steps 
 
@@ -9,11 +8,12 @@
             - allow developer to detect sync error - I think this will need to be done with a callback passed
               to sync()
             
+                - test to see if device connected to network - if not, don't attempt sync
+            
             - locking of the database (on both ends) if a sync is happening -- in other words, handle the case
               of a sync being initiated while a sync is in progress
-              
-           
-                
+
+         
 
           
 KNOWN BUGS:

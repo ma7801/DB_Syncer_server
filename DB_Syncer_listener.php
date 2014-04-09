@@ -407,6 +407,14 @@ else if ($_POST['action'] === "get_server_sync_data") {
     
     $response = array();
     
+    // Set a flag accordingly to let the client know if there are server records or not
+    if($sync_result->num_rows === 0) {
+        $response[0]['server_has_records'] = 0;
+    }
+    else {
+        $response[0]['server_has_records'] = 1;
+    }
+    
     // Create the array to be returned to the client
     for ($cur_sync = 0; $cur_sync < $sync_result->num_rows; $cur_sync++) {
         $sync_record = $sync_result->fetch_array();
