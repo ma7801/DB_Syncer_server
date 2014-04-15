@@ -62,7 +62,7 @@ if($_POST['action'] === "initialize_db") {
         respond_success($response);
     }
     else {
-        respond_error("Error creating database on server", $err);
+        respond_error("Error creating database on server" . $err, 1);
     }
 
 
@@ -107,6 +107,11 @@ if($_POST['direction'] === "client_to_server") {
 
 // If the action sent by client is a delete
 if($_POST['action'] === "delete") {
+    //***NOTE: This has not been implemented yet; only logical deletes are being used
+    //  when implemented, this needs to be updated so that automatic trigger records are
+    //  deleted during syncing
+
+
     // Setup the default values of the response back to the client
     $response = array(
         "err" => 0,
@@ -210,7 +215,7 @@ else if($_POST['action'] === "insert") {
                         array($mysql->insert_id, $_POST['table']));
         
         if(!$result_sync_delete) {
-            respond_error("Error deleting automatically generated sync record.");
+            respond_error("Error deleting automatically generated sync record:" . $mysql->error, $mysql->errno);
         
         }
         
@@ -350,8 +355,6 @@ else if($_POST['action'] === "update") {
     
     $sql .=" WHERE " . $_POST['id_col'] . "=" . $_POST['id'];
     
-    //echo "update sql: " . $sql;
-    
     $result = mysqli_prepared_query($mysql, $sql, $datatypes, $_POST['data_values']);
     
     if(!$result) {
@@ -363,10 +366,13 @@ else if($_POST['action'] === "update") {
     //  developer actually inserts a record in their own code
     $sql = "DELETE FROM _dbs_sync_actions WHERE record_id=? AND table_name=?";
     
-    $result = mysqli_prepared_query($mysql, $sql, "is", array($mysql->insert_id, $_POST['table']));
+    // DEBUG:
+    //$response['message'] .= "...mysql->insert_id?=" . $_POST['id'] . ", table_name=" . $_POST['table'];
+    
+    $result = mysqli_prepared_query($mysql, $sql, "is", array($_POST['id'], $_POST['table']));
     
     if(!$result) {
-        respond_error("Error deleting automatically generated sync record.");
+        respond_error("Error deleting automatically generated sync record:" . $mysql->error, $mysql->errno);
     
     }
   

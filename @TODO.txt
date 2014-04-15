@@ -1,18 +1,17 @@
 - TODO / NOTES:
-        - 4/8/14: Just finished some sprucing up on passed callbacks to sync.  Coded and tested
-       
+        
         - next steps 
+            - need to finish calling of error/success callbacks within DB_Syncer developer-accessible functions
+              (client) - especially in sync()!  This will take out the todo item below!
 
-            - functions on client and server to indicate sync status (unsynced, syncing, complete)
-            
             - allow developer to detect sync error - I think this will need to be done with a callback passed
               to sync()
             
-                - test to see if device connected to network - if not, don't attempt sync
-            
-            - locking of the database (on both ends) if a sync is happening -- in other words, handle the case
+        - locking of the database (on both ends) if a sync is happening -- in other words, handle the case
               of a sync being initiated while a sync is in progress
-
+            - prevent phone from sleeping during sync
+            
+            
          
 
           
@@ -25,15 +24,12 @@ KNOWN BUGS:
           But two syncs shouldn't be necessary.       
 
 CODE CLEANUP:
+        - put testing files in a separate directory (i.e. dbstest.js, etc.)        
 
         - make sure the arguments for phonegap database function callbacks (transaction, executeSql) are
           correct (i.e. tx, err)
           
-        - change config variables on client to start with "__" in case developer uses same var names
-          
         - remove any unecessary variables, class properties, methods, old code
-        
-        - be consistent with naming function with underscores -- i.e., only methods called by other methods?
         
         - remove extra code having to do with logical deletes - log. deletes should be able to be implemented 
           independent of my code since they are bascally just an update.  Rewrite code for "deletes" for
@@ -45,7 +41,9 @@ CODE CLEANUP:
         
          - better consistency in naming of items in JSON object sent by server during client to server and
           server to client --> different names can make debugging confusing (i.e. 'table' vs 'table_name', etc.)
-            
+         
+         - download jQuery & jQuery mobile and have located LOCALLY so that if not connected to web can still
+         load these   
             
 MAYBE:
 
