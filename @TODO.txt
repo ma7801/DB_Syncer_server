@@ -1,17 +1,11 @@
 - TODO / NOTES:
-        
-        - next steps 
-            - need to finish calling of error/success callbacks within DB_Syncer developer-accessible functions
-              (client) - especially in sync()!  This will take out the todo item below!
 
-            - allow developer to detect sync error - I think this will need to be done with a callback passed
-              to sync()
             
         - locking of the database (on both ends) if a sync is happening -- in other words, handle the case
               of a sync being initiated while a sync is in progress
             - prevent phone from sleeping during sync
             
-            
+        - test initialize_server_db - I think line AJAX $.post argument should be "json" not "text"    
          
 
           
@@ -21,7 +15,9 @@ KNOWN BUGS:
           PRIMARY KEY error; a record on client should have its ID changed, but its not, and when server sends a
           record with same id (that should have been changed on client) PRIMARY KEY error occurs; sync records
           indicating that the record wasn't synced were still present; did another sync with no problems.
-          But two syncs shouldn't be necessary.       
+          But two syncs shouldn't be necessary. 
+            - I THINK this is fixed - it seems to have gone away, possibly with other fixes.  But I did not
+            intentionally fix it!      
 
 CODE CLEANUP:
         - put testing files in a separate directory (i.e. dbstest.js, etc.)        
@@ -44,6 +40,7 @@ CODE CLEANUP:
          
          - download jQuery & jQuery mobile and have located LOCALLY so that if not connected to web can still
          load these   
+
             
 MAYBE:
 
