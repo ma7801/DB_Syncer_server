@@ -1,13 +1,10 @@
 - TODO / NOTES:
-
-            
-        - locking of the database (on both ends) if a sync is happening -- in other words, handle the case
-              of a sync being initiated while a sync is in progress
-            - prevent phone from sleeping during sync
-            
+        - more thorough test of locked database
+     
         - test initialize_server_db - I think line AJAX $.post argument should be "json" not "text"    
-         
 
+        - prevent phone from sleeping during sync
+            - check out config.xml for options!
           
 KNOWN BUGS:
 
@@ -20,6 +17,8 @@ KNOWN BUGS:
             intentionally fix it!      
 
 CODE CLEANUP:
+
+        - see why there's a big pause between sync table reduction and client to server sync
         - put testing files in a separate directory (i.e. dbstest.js, etc.)        
 
         - make sure the arguments for phonegap database function callbacks (transaction, executeSql) are
@@ -49,6 +48,9 @@ MAYBE:
              given time
        
         - should write database comparer
+        
+        - rewrite client to server sync - it is SLOW.  Probably just send one big chunk over to server, just
+        as server sends one big chunk over to client in server to client sync stage
        
              
         - ability to do a full sync, not just an "incremental" sync -- databases on both ends will be compared
